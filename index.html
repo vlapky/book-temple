@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Комфорт ридер — спокойное место, чтобы читать и слушать книги на русском языке." />
+    <meta name="theme-color" content="#fbfaf7" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <title>Комфорт ридер</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Перейти к тексту</a>
+
+    <header class="topbar" id="topbar">
+      <div class="brand" data-icon="logo"><span class="brand-name">Комфорт ридер</span></div>
+      <div class="book-meta">
+        <span id="bookTitle" class="book-title"></span>
+        <span id="chapterTitle" class="chapter-name"></span>
+      </div>
+      <nav class="tools" aria-label="Инструменты">
+        <button type="button" class="tool" data-action="library" data-icon="library" aria-keyshortcuts="L" title="Библиотека (L)"><span class="tool-label">Книги</span></button>
+        <button type="button" class="tool" data-action="toc" data-icon="toc" aria-keyshortcuts="T" title="Оглавление (T)"><span class="tool-label">Оглавление</span></button>
+        <button type="button" class="tool" data-action="search" data-icon="search" aria-keyshortcuts="/ Control+F" title="Поиск (/)"><span class="tool-label">Поиск</span></button>
+        <button type="button" class="tool" data-action="marks" data-icon="bookmark" aria-keyshortcuts="M" title="Закладки и заметки (M)"><span class="tool-label">Заметки</span></button>
+        <button type="button" class="tool" data-action="settings" data-icon="settings" aria-keyshortcuts="S" title="Оформление и настройки (S)"><span class="tool-label">Оформление</span></button>
+        <button type="button" class="tool" data-action="focus" data-icon="focus" aria-keyshortcuts="F" aria-pressed="false" title="Режим фокусировки (F)"><span class="tool-label">Фокус</span></button>
+        <button type="button" class="tool" data-action="rsvp" data-icon="rsvp" aria-keyshortcuts="R" title="Быстрое чтение RSVP (R)"><span class="tool-label">RSVP</span></button>
+        <button type="button" class="tool" data-action="help" data-icon="help" aria-keyshortcuts="Shift+?" title="Горячие клавиши (?)"><span class="tool-label">Справка</span></button>
+      </nav>
+    </header>
+
+    <div class="progress" id="progress">
+      <div class="bar" id="chProgress" role="progressbar" aria-label="Прогресс главы" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+      <div class="bar book" id="bookProgress" role="progressbar" aria-label="Прогресс книги" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+    </div>
+
+    <main id="main">
+      <article id="content" class="reader" lang="ru" tabindex="-1" aria-labelledby="chTitle"></article>
+    </main>
+
+    <section class="player" id="player" aria-label="Чтение вслух">
+      <div class="player-row">
+        <div class="player-main" role="group" aria-label="Управление озвучиванием">
+          <button type="button" class="pbtn" id="ttsPrev" data-icon="prev" aria-label="Предыдущее предложение" aria-keyshortcuts="ArrowLeft" title="Предыдущее предложение (←)"></button>
+          <button type="button" class="pbtn play" id="ttsPlay" data-icon="play" aria-label="Читать вслух" aria-keyshortcuts="Space" title="Читать вслух (Пробел)"></button>
+          <button type="button" class="pbtn" id="ttsNext" data-icon="next" aria-label="Следующее предложение" aria-keyshortcuts="ArrowRight" title="Следующее предложение (→)"></button>
+          <button type="button" class="pbtn" id="ttsStop" data-icon="stop" aria-label="Остановить чтение" title="Остановить"></button>
+        </div>
+        <div class="player-status">
+          <div id="ttsStatus" class="tts-status" role="status" aria-live="polite"></div>
+          <div class="load-bar" id="loadBar" hidden><span></span></div>
+          <div id="posLabel" class="pos-label"></div>
+        </div>
+        <div class="player-opts">
+          <label class="voice-pick">
+            <span class="sr-only">Голос</span>
+            <select id="voiceSelect"></select>
+          </label>
+          <button type="button" class="pbtn small" id="voicePreview" data-icon="speaker" aria-label="Прослушать голос" title="Прослушать голос"></button>
+          <div class="speed" role="group" aria-label="Скорость воспроизведения">
+            <button type="button" class="pbtn small" id="speedDown" aria-label="Медленнее" aria-keyshortcuts="-" title="Медленнее (−)">−</button>
+            <output id="speedValue" class="speed-value" aria-live="polite">1×</output>
+            <button type="button" class="pbtn small" id="speedUp" aria-label="Быстрее" aria-keyshortcuts="+" title="Быстрее (+)">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside id="panel" class="panel" aria-labelledby="panelTitle" hidden>
+      <div class="panel-head">
+        <h2 id="panelTitle" class="panel-title"></h2>
+        <button type="button" class="pbtn small" id="panelClose" data-icon="close" aria-label="Закрыть панель" title="Закрыть (Esc)"></button>
+      </div>
+      <div class="panel-body" id="panelBody"></div>
+    </aside>
+
+    <div id="ruler" class="ruler" aria-hidden="true" hidden>
+      <div class="ruler-shade top"></div>
+      <div class="ruler-band"></div>
+      <div class="ruler-shade bottom"></div>
+    </div>
+
+    <section id="rsvp" class="rsvp" role="dialog" aria-modal="true" aria-labelledby="rsvpTitle" hidden>
+      <h2 id="rsvpTitle" class="sr-only">Быстрое чтение по одному слову</h2>
+      <div class="rsvp-top">
+        <div class="rsvp-progress" id="rsvpProgress"></div>
+        <button type="button" class="pbtn small" id="rsvpClose" data-icon="close" aria-label="Закрыть RSVP" title="Закрыть (Esc)"></button>
+      </div>
+      <div class="rsvp-stage" id="rsvpStage">
+        <div class="rsvp-guide" aria-hidden="true"></div>
+        <div class="rsvp-word" id="rsvpWord" aria-live="off"><span class="l"></span><span class="c"></span><span class="r"></span></div>
+        <div class="rsvp-guide bottom" aria-hidden="true"></div>
+      </div>
+      <p class="rsvp-context" id="rsvpContext"></p>
+      <div class="rsvp-controls">
+        <button type="button" class="pbtn" id="rsvpBack" data-icon="prev" aria-label="Назад" title="Назад (←)"></button>
+        <button type="button" class="pbtn play" id="rsvpPlay" data-icon="play" aria-label="Старт" title="Старт/пауза (Пробел)"></button>
+        <button type="button" class="pbtn" id="rsvpFwd" data-icon="next" aria-label="Вперёд" title="Вперёд (→)"></button>
+        <label class="rsvp-wpm">
+          <span>Слов в минуту</span>
+          <input type="range" id="rsvpWpm" min="100" max="1000" step="25" />
+          <output id="rsvpWpmOut"></output>
+        </label>
+      </div>
+    </section>
+
+    <div id="selbar" class="selbar" role="toolbar" aria-label="Действия с выделенным текстом" hidden></div>
+
+    <dialog id="dialog" class="dlg" aria-labelledby="dlgTitle"></dialog>
+
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+    <div id="focusHint" class="focus-hint" aria-hidden="true">Режим фокусировки · Esc — выйти</div>
+    <div id="dropOverlay" class="drop-overlay" hidden><p>Отпустите файл, чтобы открыть книгу</p></div>
+    <input type="file" id="fileInput" accept=".fb2,.epub,.txt,.md,.markdown,.html,.htm,.xhtml,.zip" hidden />
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

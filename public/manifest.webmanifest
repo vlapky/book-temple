@@ -1,0 +1,19 @@
+{
+  "name": "Комфорт ридер",
+  "short_name": "Комфорт ридер",
+  "description": "Спокойное место, чтобы читать и слушать книги на русском языке.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#fbfaf7",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    { "action": "./", "accept": { "application/x-fictionbook+xml": [".fb2"], "application/epub+zip": [".epub"], "text/plain": [".txt"] } }
+  ]
+}
