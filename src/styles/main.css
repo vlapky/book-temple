@@ -51,6 +51,11 @@
   --r-align: left;
 }
 
+/* До запуска скрипта: тёмная система — сразу тёмный фон, без вспышки светлого экрана. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --bg: #1b1f27; --fg: #d6dae2; --accent: #9fb0f2; --rule: #a8524c; color-scheme: dark; }
+}
+
 :root[data-dark='true'] {
   --on-accent: #12151b;
   --hl-yellow: #5f5218;

@@ -41,6 +41,11 @@ export interface Settings {
   showPlayer: boolean
 }
 
+/** Тема по системной настройке устройства: тёмная → ночная, иначе дневная. */
+function systemTheme(): ThemeId {
+  try { return matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day' } catch { return 'day' }
+}
+
 export const DEFAULTS: Settings = {
   font: 'literata',
   fontSize: 20,
@@ -50,7 +55,8 @@ export const DEFAULTS: Settings = {
   columnWidth: 66,
   paragraphSpacing: 0.9,
   align: 'left',
-  theme: 'day',
+  // Пока пользователь не выбрал тему сам, она следует за системой (и при сбросе тоже).
+  theme: systemTheme(),
   contrast: 100,
   bgCustom: '',
   fgCustom: '',
