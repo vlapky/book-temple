@@ -1,4 +1,4 @@
-// Service worker Комфорт ридера. Шаблон: версия и список файлов подставляются при сборке (vite.config.ts).
+// Service worker Храма Книги. Шаблон: версия и список файлов подставляются при сборке (vite.config.ts).
 const VERSION = '__VERSION__'
 const SHELL = `shell-${VERSION}`
 const RUNTIME = 'runtime-v1'

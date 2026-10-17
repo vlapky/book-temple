@@ -142,7 +142,18 @@ class VoskEngine implements Engine {
     })
   }
 
-  private key(ch: number, s: number) { return `${ch}:${s}` }
+  /** Растёт при смене книги: глава 0, предложение 0 у разных книг — разные фразы. */
+  private bookGen = 0
+
+  private key(ch: number, s: number) { return `${this.bookGen}:${ch}:${s}` }
+
+  /** Новая книга: выбросить весь синтезированный звук и очередь прошлой. */
+  resetBook(): void {
+    this.bookGen++
+    this.invalidate()
+    this.queue = []
+    this.waiters.clear()
+  }
 
   private invalidate(): void {
     // Играющий сейчас фрагмент дозвучит, его URL не трогаем.
@@ -211,9 +222,11 @@ class VoskEngine implements Engine {
     if (this.clips.has(job.key)) { this.resolve(job.key, this.clips.get(job.key)!); this.pump(); return }
     this.busy = job.key
     const gen = this.genOf()
+    const book = this.bookGen
     try {
       const clip = await this.synthClip(job.ch, job.s)
-      if (gen !== this.genOf()) { URL.revokeObjectURL(clip.url); this.queue.unshift(job) } // настройки сменились — пересинтезировать
+      if (book !== this.bookGen) URL.revokeObjectURL(clip.url) // книгу сменили — фраза больше не нужна
+      else if (gen !== this.genOf()) { URL.revokeObjectURL(clip.url); this.queue.unshift(job) } // настройки сменились — пересинтезировать
       else {
         this.clips.set(job.key, clip)
         this.evict()
@@ -563,6 +576,13 @@ export class Speech {
     this.restartOnResume = false
     this.setState('idle')
     if (this.pos) this.ev.word(this.pos.ch, -1)
+  }
+
+  /** Открыта другая книга: остановить чтение и забыть позицию и звук прошлой. */
+  resetBook(): void {
+    this.stop()
+    this.pos = null
+    this.vosk.resetBook()
   }
 
   /** Перейти на соседнее предложение (dir = ±1) или на конкретную позицию. */

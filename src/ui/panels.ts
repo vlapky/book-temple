@@ -70,8 +70,10 @@ export class Panels {
     this.updateToolState()
     this.render()
     const first = name === 'search' ? this.body.querySelector<HTMLElement>('input') : this.body.querySelector<HTMLElement>('[aria-current="true"], input, button, select')
-    ;(first ?? $('panelClose')).focus({ preventScroll: name === 'toc' })
-    if (name === 'toc') this.body.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'center' })
+    ;(first ?? $('panelClose')).focus({ preventScroll: true })
+    // Прокручиваем только список панели: scrollIntoView сдвинул бы и страницу с книгой.
+    const cur = name === 'toc' ? this.body.querySelector<HTMLElement>('[aria-current="true"]') : null
+    if (cur) this.body.scrollTop = Math.max(0, cur.offsetTop - this.body.clientHeight / 2)
   }
 
   close(): void {
@@ -89,6 +91,7 @@ export class Panels {
   private afterJump(): void { if (isNarrow()) this.close() }
 
   private updateToolState(): void {
+    document.getElementById('moreBtn')?.classList.toggle('is-active', this.current === 'settings')
     for (const b of document.querySelectorAll<HTMLElement>('.tool[data-action]')) {
       const a = b.dataset.action!
       if (a in TITLES) {
@@ -136,7 +139,7 @@ export class Panels {
         <div class="fonts" role="radiogroup" aria-labelledby="g-text">
           ${(Object.keys(FONTS) as (keyof typeof FONTS)[]).map((f) => `
             <label class="font-card"><input type="radio" name="set-font" data-key="font" value="${f}" ${s.font === f ? 'checked' : ''}/>
-              <span class="sample" style="font-family:${esc(FONTS[f].stack)}">${FONTS[f].name} · Аа Бб Жж</span>
+              <span class="sample" style="font-family:${esc(FONTS[f].stack)}">${FONTS[f].name}, Аа Бб Жж</span>
               <small>${FONTS[f].note ?? ''}</small></label>`).join('')}
         </div>
         ${range('fontSize', 'Размер шрифта', 14, 40, 1, (v) => `${v} px`)}
@@ -152,11 +155,11 @@ export class Panels {
         <h3 class="group-title" id="g-color">Цвет</h3>
         <div class="themes" role="radiogroup" aria-labelledby="g-color">
           ${(Object.keys(THEMES) as (keyof typeof THEMES)[]).map((t) => `
-            <label class="theme-card" style="background:${THEMES[t].bg};color:${THEMES[t].fg}">
+            <label class="theme-card">
               <input type="radio" name="set-theme" data-key="theme" value="${t}" ${s.theme === t ? 'checked' : ''}/>
-              <span class="aa" aria-hidden="true">Аа</span>${THEMES[t].name}</label>`).join('')}
+              <span class="aa" aria-hidden="true" style="background:${THEMES[t].bg};color:${THEMES[t].fg};--sw-rule:${THEMES[t].rule}">Аа</span>${THEMES[t].name}</label>`).join('')}
         </div>
-        ${range('contrast', 'Контраст текста', 55, 100, 1, (v) => `${v}%`)}
+        ${range('contrast', 'Контраст текста', 20, 100, 1, (v) => `${v}%`)}
         <p class="hint">Контрастность: <span class="contrast-badge ${cr >= 7 ? 'ok' : cr >= 4.5 ? 'warn' : 'bad'}" id="crBadge">${cr.toFixed(1)}:1 ${cr >= 7 ? 'AAA' : cr >= 4.5 ? 'AA' : 'низкая'}</span></p>
         <div class="colors" style="margin-top:10px">
           <label class="color-pick"><input type="color" data-key="bgCustom" value="${bg}" aria-label="Цвет фона"/>Фон</label>
@@ -186,7 +189,7 @@ export class Panels {
               <option value="webgpu" ${s.backend === 'webgpu' ? 'selected' : ''}>Видеокарта (WebGPU)</option>
               <option value="wasm" ${s.backend === 'wasm' ? 'selected' : ''}>Процессор (WASM)</option>
             </select>
-            <p class="hint" id="modelStatus">${this.app.speech.vosk.loaded ? `Модель загружена · ${this.app.speech.vosk.backend === 'webgpu' ? 'WebGPU' : 'WASM'}${crossOriginIsolated ? ', многопоточно' : ''}` : 'Модель ещё не загружена. Смена режима вычислений применится после перезагрузки страницы.'}</p>
+            <p class="hint" id="modelStatus">${this.app.speech.vosk.loaded ? `Модель загружена и считается ${this.app.speech.vosk.backend === 'webgpu' ? 'на видеокарте' : 'на процессоре'}${crossOriginIsolated ? ' в несколько потоков' : ''}.` : 'Модель ещё не загружена.'} Новый режим вычислений включится после перезагрузки страницы.</p>
           </div>
           <div class="btn-row"><button type="button" class="btn danger" id="clearModel" data-icon="trash">Удалить модель из памяти</button></div>` : ''}
       </section>
@@ -228,6 +231,7 @@ export class Panels {
         toast('Настройки сброшены')
       }
     }
+    b.querySelector('#set-contrast')?.closest('.field')?.classList.add('keep-contrast')
     fillVoiceSelect(b.querySelector('[data-voice-select]')!)
     b.querySelector<HTMLButtonElement>('#previewBtn')!.onclick = () => this.app.speech.previewVoice(SAMPLE_PHRASE)
     const clear = b.querySelector<HTMLButtonElement>('#clearModel')
@@ -264,7 +268,7 @@ export class Panels {
       const v = s[key]
       if (el.type === 'checkbox') el.checked = !!v
       else if (el.type === 'radio') el.checked = String(v) === el.value
-      else if (el.type === 'color') { if (key === 'bgCustom') el.value = effectiveColors(s).bg; else if (v) el.value = String(v) }
+      else if (el.type === 'color') el.value = key === 'bgCustom' ? effectiveColors(s).bg : s.fgCustom || THEMES[s.theme].fg
       else if (document.activeElement !== el) el.value = String(v)
       if (el.type === 'range') {
         const out = this.body.querySelector(`[data-out="${key}"]`)
@@ -292,12 +296,12 @@ export class Panels {
     const cur = r.ch
     const total = book.chapters.reduce((a, c) => a + c.words, 0)
     this.body.innerHTML = `
-      <p class="hint" style="margin:8px 0">${esc(book.title)}${book.author ? ` · ${esc(book.author)}` : ''} · ${book.chapters.length} ${plural(book.chapters.length, 'глава', 'главы', 'глав')} · ≈ ${Math.max(1, Math.round(total / 180))} мин чтения</p>
+      <p class="hint" style="margin:0 0 10px">${book.author ? `${esc(book.author)}, «${esc(book.title)}». ` : ''}${book.chapters.length} ${plural(book.chapters.length, 'глава', 'главы', 'глав')}, около ${Math.max(1, Math.round(total / 180))} мин чтения.</p>
       <nav aria-label="Главы"><ol class="list" style="list-style:none">
         ${book.chapters.map((c, i) => {
           const pct = i < cur ? 100 : i > cur ? 0 : Math.round((r.pos.s / Math.max(1, r.data(i).sents.length)) * 100)
           return `<li><button type="button" class="toc-item" data-ch="${i}" ${i === cur ? 'aria-current="true"' : ''}>
-            <span>${esc(c.title)}</span><span class="num">${i + 1}</span></button>
+            <span class="num">${i + 1}</span><span>${esc(c.title)}</span></button>
             ${pct > 0 ? `<div class="toc-progress" aria-hidden="true"><span style="width:${pct}%"></span></div>` : ''}</li>`
         }).join('')}
       </ol></nav>`
@@ -366,7 +370,7 @@ export class Panels {
           const a = Math.max(0, i - 50), z = Math.min(text.length, i + q.length + 70)
           const snip = (a > 0 ? '…' : '') + esc(text.slice(a, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length, z)) + (z < text.length ? '…' : '')
           hits.push(`<li><button type="button" class="item-main search-hit" data-hit="${ci}:${bi}:${occ}" style="margin:6px -8px">
-            <span class="item-sub">${ci + 1}. ${esc(c.title)}</span><span class="item-quote">${snip}</span></button></li>`)
+            <span class="item-sub">Глава ${ci + 1}, «${esc(c.title)}»</span><span class="item-quote">${snip}</span></button></li>`)
         }
       })
     })
@@ -422,7 +426,7 @@ export class Panels {
           <li class="item">
             <div style="flex:1;min-width:0">
               <button type="button" class="item-main" data-go-w="${h.ch}:${h.w0}">
-                <span class="item-sub"><span class="swatch ${h.color}" aria-hidden="true"></span>${esc(book.chapters[h.ch]?.title ?? '')} · ${date(h.created)}</span>
+                <span class="item-sub"><span class="swatch ${h.color}" aria-hidden="true"></span>${esc(book.chapters[h.ch]?.title ?? '')}, ${date(h.created)}</span>
                 <span class="item-quote">${esc(h.text.length > 240 ? h.text.slice(0, 240) + '…' : h.text)}</span>
               </button>
               ${h.note ? `<div class="item-note">${esc(h.note)}</div>` : ''}
@@ -465,8 +469,8 @@ export class Panels {
         <button type="button" class="btn primary" data-act="file" data-icon="open">Открыть файл</button>
         <button type="button" class="btn" data-act="paste" data-icon="text">Вставить текст</button>
       </div>
-      <p class="lib-drop">Или перетащите файл в окно.<br/>FB2, EPUB, TXT, Markdown, HTML</p>
-      <h3 class="group-title" style="margin-top:20px">Мои книги</h3>
+      <p class="lib-drop">Можно перетащить файл прямо в окно. Подходят FB2, EPUB, TXT, Markdown и HTML.</p>
+      <h3 class="group-title" style="margin-top:24px">Мои книги</h3>
       <ul class="list" id="libList"><li class="empty">Загрузка…</li></ul>`
     listBooks().then((books) => this.renderLibrary(books)).catch(() => {
       const l = this.body.querySelector('#libList')
@@ -500,7 +504,7 @@ export class Panels {
       return `<li class="item" ${b.id === cur ? 'aria-current="true"' : ''}>
         <button type="button" class="item-main" data-open="${esc(b.id)}">
           <span class="item-title">${esc(b.title)}</span>
-          <span class="item-sub">${b.author ? esc(b.author) + ' · ' : ''}${pct}% прочитано · ≈ ${Math.max(1, Math.round(b.words / 180))} мин</span>
+          <span class="item-sub">${b.author ? esc(b.author) + '. ' : ''}Прочитано ${pct}%, всего около ${Math.max(1, Math.round(b.words / 180))} мин</span>
         </button>
         ${b.id === 'demo' ? '' : `<button type="button" class="pbtn small" data-del="${esc(b.id)}" data-title="${esc(b.title)}" data-icon="trash" aria-label="Удалить книгу «${esc(b.title)}»"></button>`}
       </li>`

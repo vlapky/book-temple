@@ -168,7 +168,7 @@ export class Rsvp {
       $('rsvpContext').innerHTML = html
     } else $('rsvpContext').textContent = ''
     const total = cd.words.length
-    $('rsvpProgress').textContent = `Глава ${this.ch + 1} из ${this.reader.chapterCount()} · ${Math.round((this.w / Math.max(1, total)) * 100)}% · осталось ≈ ${Math.max(1, Math.round((total - this.w) / settings.s.rsvpWpm))} мин`
+    $('rsvpProgress').textContent = `Глава ${this.ch + 1} из ${this.reader.chapterCount()}, прочитано ${Math.round((this.w / Math.max(1, total)) * 100)}%, до конца главы около ${Math.max(1, Math.round((total - this.w) / settings.s.rsvpWpm))} мин`
 
     // Длительность: длинные слова и паузы на знаках препинания показываются дольше.
     const base = (60000 / settings.s.rsvpWpm) * k

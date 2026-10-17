@@ -37,6 +37,8 @@ export interface Settings {
   rsvpWpm: number
   rsvpWords: number
   rsvpContext: boolean
+
+  showPlayer: boolean
 }
 
 export const DEFAULTS: Settings = {
@@ -73,16 +75,19 @@ export const DEFAULTS: Settings = {
   rsvpWpm: 300,
   rsvpWords: 1,
   rsvpContext: true,
+
+  showPlayer: true,
 }
 
-export interface Theme { name: string; bg: string; fg: string; accent: string }
+export interface Theme { name: string; bg: string; fg: string; accent: string; rule: string }
 
+// Тетрадь: бумага, чернила и красная линия полей.
 export const THEMES: Record<ThemeId, Theme> = {
-  day: { name: 'Дневная', bg: '#fbfaf7', fg: '#1d2127', accent: '#2563c9' },
-  night: { name: 'Ночная', bg: '#14161a', fg: '#d9dde3', accent: '#8fb3ff' },
-  sepia: { name: 'Сепия', bg: '#f3e9d4', fg: '#4f3d2c', accent: '#a0522d' },
-  cream: { name: 'Кремовая', bg: '#fff7e3', fg: '#2c2820', accent: '#9a5b13' },
-  digital: { name: 'Цифровая', bg: '#000000', fg: '#3dff7a', accent: '#3dff7a' },
+  day: { name: 'Дневная', bg: '#f7f8f5', fg: '#1f2330', accent: '#3540a8', rule: '#d9574f' },
+  night: { name: 'Ночная', bg: '#1b1f27', fg: '#d6dae2', accent: '#9fb0f2', rule: '#a8524c' },
+  sepia: { name: 'Сепия', bg: '#f1e6cf', fg: '#463626', accent: '#7c4b20', rule: '#b4533c' },
+  cream: { name: 'Кремовая', bg: '#fff5dc', fg: '#2a251d', accent: '#5a3fa0', rule: '#cf5a45' },
+  digital: { name: 'Цифровая', bg: '#000000', fg: '#3dff7a', accent: '#3dff7a', rule: '#145c2c' },
 }
 
 export const FONTS: Record<FontId, { name: string; stack: string; note?: string }> = {
@@ -159,22 +164,31 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 /** Итоговые цвета текста и фона с учётом пользовательских правок. */
-export function effectiveColors(s: Settings): { bg: string; fg: string; accent: string; dark: boolean } {
+/**
+ * fg — цвет текста книги с учётом ползунка контраста;
+ * baseFg — цвет темы (или свой) без приглушения: им рисуется интерфейс.
+ */
+export function effectiveColors(s: Settings): { bg: string; fg: string; baseFg: string; accent: string; dark: boolean } {
   const t = THEMES[s.theme]
   const bg = s.bgCustom || t.bg
   const baseFg = s.fgCustom || t.fg
   const fg = mix(baseFg, bg, s.contrast / 100)
-  return { bg, fg, accent: t.accent, dark: luminance(bg) < 0.2 }
+  return { bg, fg, baseFg, accent: t.accent, dark: luminance(bg) < 0.2 }
 }
 
 /** Применяет настройки к документу через CSS-переменные. */
 export function applySettings(s: Settings): void {
   const root = document.documentElement
-  const { bg, fg, accent, dark } = effectiveColors(s)
+  const { bg, fg, baseFg, accent, dark } = effectiveColors(s)
   const st = root.style
   st.setProperty('--bg', bg)
+  // Контраст действует на весь интерфейс; --fg-base — цвет без приглушения (для ползунка контраста).
   st.setProperty('--fg', fg)
-  st.setProperty('--accent', accent)
+  st.setProperty('--text', fg)
+  st.setProperty('--fg-base', baseFg)
+  // Синие пометки (прогресс, маркер голоса, сноски) тоже следуют за контрастом.
+  st.setProperty('--accent', mix(accent, bg, s.contrast / 100))
+  st.setProperty('--rule', THEMES[s.theme].rule)
   st.setProperty('--r-font', FONTS[s.font].stack)
   st.setProperty('--r-size', `${s.fontSize}px`)
   st.setProperty('--r-lh', String(s.lineHeight))

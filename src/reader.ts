@@ -62,6 +62,10 @@ export class Reader {
   open(book: Book, pos: Position): void {
     this.book = book
     this.cache.clear()
+    // Новая книга: глава с тем же номером всё равно другая — принудительно перерисовываем.
+    this.ch = -1
+    this.chunk = 0
+    this.sentEls = []
     const ch = Math.min(Math.max(0, pos.ch), book.chapters.length - 1)
     this.showChapter(ch, { s: ch === pos.ch ? pos.s : 0, instant: true })
   }
@@ -112,14 +116,14 @@ export class Reader {
     this.chunkCount = chunkIdx + 1
 
     const html: string[] = []
-    html.push(`<header class="chapter-head"><p class="chapter-kicker">Глава ${this.ch + 1} из ${total}</p><h1 id="chTitle" class="chapter-title-h">${esc(ch.title)}</h1></header>`)
+    html.push(`<header class="chapter-head"><span class="chapter-num" aria-hidden="true">${this.ch + 1}</span><h1 id="chTitle" class="chapter-title-h">${esc(ch.title)}</h1><p class="sr-only">Глава ${this.ch + 1} из ${total}</p></header>`)
     let open = -1
     cd.blocks.forEach((b, bi) => {
       const c = chunkOfBlock[bi]
       if (c !== open) {
         if (open >= 0) html.push(this.chunkFooter(open), '</section>')
         open = c
-        const label = s.chunking ? `<p class="chunk-label" aria-hidden="true">Блок ${c + 1} из ${this.chunkCount}</p>` : ''
+        const label = s.chunking ? `<span class="chunk-num" aria-hidden="true">${c + 1}/${this.chunkCount}</span>` : ''
         html.push(`<section class="chunk" data-chunk="${c}"${s.chunking ? ` aria-label="Блок ${c + 1} из ${this.chunkCount}"` : ''}>${label}`)
       }
       if (b.k === 'sep') { html.push(`<hr class="blk sep" data-b="${bi}">`); return }
@@ -153,8 +157,8 @@ export class Reader {
     }
 
     html.push('<nav class="chapter-nav" aria-label="Переход между главами">')
-    html.push(this.ch > 0 ? `<button type="button" class="btn" data-goto-chapter="${this.ch - 1}">← ${esc(this.book.chapters[this.ch - 1].title)}</button>` : '<span></span>')
-    html.push(this.ch < total - 1 ? `<button type="button" class="btn primary" data-goto-chapter="${this.ch + 1}">${esc(this.book.chapters[this.ch + 1].title)} →</button>` : '<p class="book-end">Конец книги</p>')
+    html.push(this.ch > 0 ? `<button type="button" class="btn" data-goto-chapter="${this.ch - 1}"><span class="k">Предыдущая глава</span>${esc(this.book.chapters[this.ch - 1].title)}</button>` : '')
+    html.push(this.ch < total - 1 ? `<button type="button" class="btn primary" data-goto-chapter="${this.ch + 1}"><span class="k">Следующая глава</span>${esc(this.book.chapters[this.ch + 1].title)}</button>` : '<p class="book-end">Конец книги</p>')
     html.push('</nav>')
 
     this.el.innerHTML = html.join('')
@@ -173,8 +177,8 @@ export class Reader {
 
   private chunkFooter(c: number): string {
     if (!settings.s.chunking) return ''
-    const prev = c > 0 ? `<button type="button" class="btn" data-goto-chunk="${c - 1}">← Предыдущий блок</button>` : '<span></span>'
-    const next = c < this.chunkCount - 1 ? `<button type="button" class="btn primary" data-goto-chunk="${c + 1}">Следующий блок →</button>` : ''
+    const prev = c > 0 ? `<button type="button" class="btn" data-goto-chunk="${c - 1}">Предыдущий блок</button>` : '<span></span>'
+    const next = c < this.chunkCount - 1 ? `<button type="button" class="btn primary" data-goto-chunk="${c + 1}">Следующий блок</button>` : ''
     return `<div class="chunk-nav">${prev}${next}</div>`
   }
 
@@ -211,7 +215,7 @@ export class Reader {
 
   bottomInset(): number {
     const p = document.getElementById('player')
-    return p && !document.body.classList.contains('focus-mode') ? Math.max(0, innerHeight - p.getBoundingClientRect().top) : 0
+    return p && !p.hidden && !document.body.classList.contains('focus-mode') ? Math.max(0, innerHeight - p.getBoundingClientRect().top) : 0
   }
 
   private lockScroll(ms = 120): void { this.lockUntil = performance.now() + ms }

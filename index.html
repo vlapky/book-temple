@@ -3,31 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Комфорт ридер — спокойное место, чтобы читать и слушать книги на русском языке." />
+    <meta name="description" content="Храм Книги — спокойное место, чтобы читать или слушать книги на русском языке." />
     <meta name="theme-color" content="#fbfaf7" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <title>Комфорт ридер</title>
+    <title>Храм Книги</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Перейти к тексту</a>
+    <!-- Появляется, если текст сливается с фоном: оформлена независимо от темы. -->
+    <button type="button" class="rescue" id="rescue" hidden>Текст плохо виден? Вернуть цвета темы</button>
 
     <header class="topbar" id="topbar">
-      <div class="brand" data-icon="logo"><span class="brand-name">Комфорт ридер</span></div>
       <div class="book-meta">
         <span id="bookTitle" class="book-title"></span>
         <span id="chapterTitle" class="chapter-name"></span>
       </div>
       <nav class="tools" aria-label="Инструменты">
+        <button type="button" class="tool" data-action="audio" data-icon="headphones" aria-pressed="true" aria-controls="player" aria-keyshortcuts="A" title="Показать или скрыть плеер (A)"><span class="tool-label">Аудио</span></button>
         <button type="button" class="tool" data-action="library" data-icon="library" aria-keyshortcuts="L" title="Библиотека (L)"><span class="tool-label">Книги</span></button>
         <button type="button" class="tool" data-action="toc" data-icon="toc" aria-keyshortcuts="T" title="Оглавление (T)"><span class="tool-label">Оглавление</span></button>
         <button type="button" class="tool" data-action="search" data-icon="search" aria-keyshortcuts="/ Control+F" title="Поиск (/)"><span class="tool-label">Поиск</span></button>
         <button type="button" class="tool" data-action="marks" data-icon="bookmark" aria-keyshortcuts="M" title="Закладки и заметки (M)"><span class="tool-label">Заметки</span></button>
-        <button type="button" class="tool" data-action="settings" data-icon="settings" aria-keyshortcuts="S" title="Оформление и настройки (S)"><span class="tool-label">Оформление</span></button>
-        <button type="button" class="tool" data-action="focus" data-icon="focus" aria-keyshortcuts="F" aria-pressed="false" title="Режим фокусировки (F)"><span class="tool-label">Фокус</span></button>
-        <button type="button" class="tool" data-action="rsvp" data-icon="rsvp" aria-keyshortcuts="R" title="Быстрое чтение RSVP (R)"><span class="tool-label">RSVP</span></button>
-        <button type="button" class="tool" data-action="help" data-icon="help" aria-keyshortcuts="Shift+?" title="Горячие клавиши (?)"><span class="tool-label">Справка</span></button>
+        <div class="more">
+          <button type="button" class="tool" id="moreBtn" data-icon="more" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu" aria-label="Ещё" title="Ещё"></button>
+          <div class="menu" id="moreMenu" role="menu" aria-labelledby="moreBtn" hidden>
+            <button type="button" class="menu-item" role="menuitem" tabindex="-1" data-action="settings" data-icon="settings" aria-keyshortcuts="S"><span>Оформление и настройки</span><kbd>S</kbd></button>
+            <button type="button" class="menu-item" role="menuitemcheckbox" aria-checked="false" tabindex="-1" data-action="focus" data-icon="focus" aria-keyshortcuts="F"><span>Режим фокусировки</span><kbd>F</kbd></button>
+            <button type="button" class="menu-item" role="menuitem" tabindex="-1" data-action="rsvp" data-icon="rsvp" aria-keyshortcuts="R"><span>Быстрое чтение RSVP</span><kbd>R</kbd></button>
+            <button type="button" class="menu-item" role="menuitem" tabindex="-1" data-action="help" data-icon="help" aria-keyshortcuts="Shift+?"><span>Горячие клавиши</span><kbd>?</kbd></button>
+          </div>
+        </div>
       </nav>
     </header>
 
@@ -111,7 +118,7 @@
     <dialog id="dialog" class="dlg" aria-labelledby="dlgTitle"></dialog>
 
     <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
-    <div id="focusHint" class="focus-hint" aria-hidden="true">Режим фокусировки · Esc — выйти</div>
+    <div id="focusHint" class="focus-hint" aria-hidden="true">Чтобы выйти из режима фокусировки, нажмите Esc</div>
     <div id="dropOverlay" class="drop-overlay" hidden><p>Отпустите файл, чтобы открыть книгу</p></div>
     <input type="file" id="fileInput" accept=".fb2,.epub,.txt,.md,.markdown,.html,.htm,.xhtml,.zip" hidden />
 

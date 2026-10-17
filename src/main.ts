@@ -2,7 +2,7 @@ import './fonts'
 import './styles/main.css'
 import type { Book, Position } from './book/types'
 import { Reader } from './reader'
-import { settings, applySettings } from './settings'
+import { settings, applySettings, effectiveColors, contrastRatio, type Settings } from './settings'
 import { annotations } from './annotations'
 import { Speech, type TtsState } from './tts/engine'
 import { VOSK_VOICES, SAMPLE_PHRASE } from './tts/voices'
@@ -16,6 +16,7 @@ import { Rsvp } from './ui/rsvp'
 import { Ruler } from './ui/ruler'
 import { SelectionBar } from './ui/selection'
 import { askModelDialog, helpDialog } from './ui/dialog'
+import { setupMenu } from './ui/menu'
 
 // ---------- Состояние ----------
 
@@ -84,7 +85,7 @@ async function openBookById(id: string): Promise<void> {
 }
 
 async function openBook(b: Book, save = false): Promise<void> {
-  speech.stop()
+  speech.resetBook()
   reader.markTts(null)
   rsvp.close()
   selbar.hide()
@@ -95,7 +96,7 @@ async function openBook(b: Book, save = false): Promise<void> {
   local.set('lastBook', b.id)
   const pos = local.get<Position>(`pos:${b.id}`, { ch: 0, s: 0 })
   $('bookTitle').textContent = b.title
-  document.title = `${b.title} — Комфорт ридер`
+  document.title = `${b.title} — Храм Книги`
   reader.open(b, pos)
   updateProgress()
 }
@@ -196,7 +197,12 @@ function updateProgress(): void {
   // Оценка оставшегося времени: при чтении вслух — по темпу голоса.
   const wpm = speech.active ? 150 * settings.s.speechRate * settings.s.playbackRate : 180
   const left = (cd.words.length - w) / wpm
-  $('posLabel').textContent = `Глава ${p.ch + 1} из ${book.chapters.length} · ${Math.round(chPct)}% · до конца главы ${formatMinutes(left)} · книга ${Math.round(bPct)}%`
+  const lbl = $('posLabel')
+  lbl.replaceChildren(
+    Object.assign(document.createElement('span'), { textContent: `Глава ${p.ch + 1} из ${book.chapters.length}, прочитано ${Math.round(chPct)}%` }),
+    Object.assign(document.createElement('span'), { textContent: `до конца главы ${formatMinutes(left)}` }),
+  )
+  lbl.title = `Книга прочитана на ${Math.round(bPct)}%`
 }
 
 // ---------- Плеер ----------
@@ -215,7 +221,7 @@ function updateStatus(): void {
   const st = speech.state
   const s = settings.s
   const voice = s.engine === 'vosk' ? VOSK_VOICES[s.voskVoice]?.name : (Speech.systemVoices().find((v) => v.voiceURI === s.systemVoice) ?? Speech.systemVoices()[0])?.name ?? 'Системный голос'
-  $('ttsStatus').textContent = st === 'playing' ? `Читает ${voice}` : st === 'paused' ? 'Пауза · пробел — продолжить' : st === 'loading' ? 'Готовлю озвучку…' : 'Пробел — читать вслух'
+  $('ttsStatus').textContent = st === 'playing' ? `Читает ${voice}` : st === 'paused' ? 'На паузе. Пробел продолжит чтение' : st === 'loading' ? 'Готовлю озвучку…' : 'Нажмите пробел, чтобы слушать'
 }
 
 function onTtsState(st: TtsState): void {
@@ -253,8 +259,18 @@ const voiceSel = $<HTMLSelectElement>('voiceSelect')
 fillVoiceSelect(voiceSel)
 if (Speech.systemAvailable()) speechSynthesis.addEventListener?.('voiceschanged', () => { if (settings.s.engine === 'system') fillVoiceSelect(voiceSel) })
 
+/** Плеер внизу можно спрятать кнопкой «Аудио»; озвучка и горячие клавиши продолжают работать. */
+function applyPlayerVisibility(show: boolean): void {
+  $('player').hidden = !show
+  document.body.classList.toggle('player-hidden', !show)
+  document.querySelector('.tool[data-action="audio"]')?.setAttribute('aria-pressed', String(show))
+}
+applyPlayerVisibility(settings.s.showPlayer)
+
 settings.on((s, ch) => {
   applySettings(s)
+  if (ch.includes('showPlayer')) applyPlayerVisibility(s.showPlayer)
+  checkReadable(s)
   if (ch.includes('playbackRate')) $('speedValue').textContent = fmtRate(s.playbackRate)
   if (ch.includes('engine')) fillVoiceSelect(voiceSel)
   if (ch.includes('voskVoice') || ch.includes('systemVoice')) { voiceSel.value = s.engine === 'vosk' ? String(s.voskVoice) : s.systemVoice; updateStatus() }
@@ -267,13 +283,36 @@ settings.on((s, ch) => {
 })
 $('speedValue').textContent = fmtRate(settings.s.playbackRate)
 
+// ---------- Нечитаемые цвета ----------
+
+/** Ниже этого контраста (минимум WCAG для крупного текста) читать уже нельзя. */
+const UNREADABLE = 3
+
+function checkReadable(s: Settings): void {
+  // Проверяем цвета темы, а не ползунок контраста: бледный текст можно выбрать намеренно,
+  // а вот слившиеся с фоном цвета ломают и интерфейс.
+  const { bg, baseFg } = effectiveColors(s)
+  const bad = contrastRatio(baseFg, bg) < UNREADABLE
+  const btn = $('rescue')
+  if (bad === !btn.hidden) return
+  btn.hidden = !bad
+  if (bad) toast('Текст плохо виден на этом фоне. Кнопка вверху слева вернёт цвета темы', 'error')
+}
+$('rescue').onclick = () => {
+  settings.reset(['theme', 'contrast', 'bgCustom', 'fgCustom'])
+  $('rescue').hidden = true
+  toast('Цвета темы восстановлены')
+  $('content').focus({ preventScroll: true })
+}
+checkReadable(settings.s)
+
 // ---------- Режим фокусировки ----------
 
 let hintTimer = 0
 function setFocusMode(on: boolean): void {
   const p = position()
   document.body.classList.toggle('focus-mode', on)
-  document.querySelector('[data-action="focus"]')?.setAttribute('aria-pressed', String(on))
+  document.querySelector('[data-action="focus"]')?.setAttribute('aria-checked', String(on))
   if (on) {
     panels.close()
     const hint = $('focusHint')
@@ -282,7 +321,7 @@ function setFocusMode(on: boolean): void {
     hintTimer = window.setTimeout(() => hint.classList.remove('show'), 2500)
     $('content').focus({ preventScroll: true })
   }
-  toast(on ? 'Режим фокусировки включён. Esc — выйти' : 'Режим фокусировки выключен')
+  toast(on ? 'Режим фокусировки включён. Чтобы выйти, нажмите Esc' : 'Режим фокусировки выключен')
   requestAnimationFrame(() => reader.scrollToSentence(p.s, { instant: true, align: 0.3 }))
 }
 const inFocus = () => document.body.classList.contains('focus-mode')
@@ -315,6 +354,8 @@ function highlightCurrent(withNote: boolean): void {
 for (const b of document.querySelectorAll<HTMLElement>('.tool[data-action]')) {
   b.addEventListener('click', () => runAction(b.dataset.action!, b))
 }
+// Пункты меню «Ещё»: фокус после закрытия панели возвращается на кнопку меню.
+setupMenu($('moreBtn'), $('moreMenu'), (action) => runAction(action, $('moreBtn')))
 
 function runAction(a: string, opener?: HTMLElement): void {
   switch (a) {
@@ -323,6 +364,7 @@ function runAction(a: string, opener?: HTMLElement): void {
     case 'focus': setFocusMode(!inFocus()); break
     case 'rsvp': startRsvp(); break
     case 'help': helpDialog(); break
+    case 'audio': settings.set({ showPlayer: !settings.s.showPlayer }); break
   }
 }
 
@@ -403,6 +445,7 @@ document.addEventListener('keydown', (e) => {
       case 'KeyS': panels.toggle('settings'); return true
       case 'KeyM': panels.toggle('marks'); return true
       case 'KeyL': panels.toggle('library'); return true
+      case 'KeyA': runAction('audio'); return true
       case 'KeyB': toggleBookmark(); return true
       case 'KeyH': highlightCurrent(false); return true
       case 'KeyN': highlightCurrent(true); return true
@@ -431,6 +474,9 @@ new ResizeObserver(([e]) => {
   document.documentElement.style.setProperty('--topbar-h', `${h}px`)
   document.documentElement.style.scrollPaddingTop = `${h + 24}px`
 }).observe($('topbar'))
+new ResizeObserver(([e]) => {
+  document.documentElement.style.setProperty('--player-h', `${Math.round(e.target.getBoundingClientRect().height)}px`)
+}).observe($('player'))
 
 // ---------- Запуск ----------
 

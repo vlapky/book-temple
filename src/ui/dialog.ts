@@ -29,7 +29,9 @@ export function showDialog<T = string>(html: string, setup?: (d: HTMLDialogEleme
     setup?.(d, close)
     d.showModal()
     const auto = d.querySelector<HTMLElement>('[autofocus]') ?? d.querySelector<HTMLElement>('.primary')
-    auto?.focus()
+    // Фокус на кнопке внизу не должен прокручивать длинный диалог (справку) к концу.
+    auto?.focus({ preventScroll: true })
+    d.scrollTop = 0
   })
   const p = busy.then(run, run)
   busy = p.catch(() => {})
@@ -118,6 +120,7 @@ const KEYS: [string, string][] = [
   ['<kbd>J</kbd> <kbd>K</kbd>', 'Следующий / предыдущий блок (в режиме блоков)'],
   ['<kbd>[</kbd> <kbd>]</kbd>', 'Предыдущая / следующая глава'],
   ['<kbd>L</kbd>', 'Книги: открыть файл, библиотека'],
+  ['<kbd>A</kbd>', 'Показать или скрыть плеер внизу'],
   ['<kbd>?</kbd>', 'Эта справка'],
 ]
 
