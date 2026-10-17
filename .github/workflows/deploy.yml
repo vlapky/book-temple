@@ -1,0 +1,52 @@
+# Сборка и публикация Храма Книги на GitHub Pages.
+# Пулл-реквесты только собираются (проверка типов + vite build), деплой — при пуше в main или вручную.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Один деплой за раз; уже идущий не прерываем, чтобы сайт не остался полуопубликованным.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc # Vite 8 требует Node ≥ 22.12
+          cache: npm
+
+      - run: npm ci
+
+      # tsc + vite build; плагин в vite.config.ts копирует рантайм onnxruntime-web в public/ort
+      # и генерирует sw.js со списком файлов для офлайна.
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
