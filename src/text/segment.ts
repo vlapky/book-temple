@@ -67,7 +67,8 @@ export function splitSentences(text: string): string[] {
       const last = /([\p{L}.]+)$/u.exec(before)?.[1] ?? ''
       // «и т. д.», «и т. п.» обычно завершают фразу.
       const etc = /(^|\s)т\.\s?[дп]$/.test(before)
-      if (!etc && (ABBR.has(last.toLowerCase()) || /^\p{Lu}$/u.test(last))) continue
+      // Инициалы (А. С. Пушкин) — только кириллица: «клавишу S. Дальше…» — конец предложения.
+      if (!etc && (ABBR.has(last.toLowerCase()) || /^[А-ЯЁ]$/.test(last))) continue
     }
     const end = m.index + m[1].length + m[2].length
     const s = text.slice(start, end).trim()
@@ -149,18 +150,23 @@ export function analyzeChapter(ch: Chapter): ChapterData {
 /** Текст предложения для синтезатора Vosk по диапазону слов [w0, w1). */
 export function ttsText(cd: ChapterData, s: Sent, w0 = s.w0, w1 = s.w1): string {
   let out = ''
+  let prev = -1 // последнее встреченное слово
   for (const tok of s.toks) {
     if (tok.k === 'w') {
+      prev = tok.i
       if (tok.i < w0 || tok.i >= w1) continue
       out += cd.words[tok.i].spoken
     } else if (tok.k === 't') {
-      out += ttsPunct(tok.v)
+      // Пунктуация — только своей части: после её слов или перед первым словом предложения.
+      if ((prev >= w0 && prev < w1) || (prev < 0 && w0 === s.w0)) out += ttsPunct(tok.v)
     }
   }
   if (w0 !== s.w0) out = out.replace(/^[^\p{L}"]+/u, '')
+  out = out.replace(/"\s*"/g, ' ') // пустые кавычки (например, вокруг «⋯»)
   out = out.replace(/\s+/g, ' ').replace(/\s+([,.?!;:)])/g, '$1').trim()
-  if (w1 !== s.w1) out = out.replace(/[\s,;:-]+$/u, '') + ','
-  if (!/[.?!]$/.test(out)) out = out.replace(/[\s,;:-]+$/u, '') + '.'
+  // Середина предложения — с запятой (интонация продолжения), конец — с точкой.
+  if (w1 !== s.w1) out = out.replace(/[\s,;:.!?-]+$/u, '') + ','
+  else if (!/[.?!]$/.test(out)) out = out.replace(/[\s,;:-]+$/u, '') + '.'
   return out
 }
 

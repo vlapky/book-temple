@@ -47,6 +47,9 @@ export class Reader {
 
   chapterCount(): number { return this.book.chapters.length }
 
+  /** Сбросить разобранный текст глав (например, после правки словаря произношения). */
+  clearCache(): void { this.cache.clear() }
+
   data(ch: number): ChapterData {
     let d = this.cache.get(ch)
     if (!d) {

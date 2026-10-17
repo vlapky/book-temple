@@ -1,6 +1,7 @@
 import type { Position } from '../book/types'
 import type { ChapterData } from '../text/segment'
 import { ttsText, wordWeight } from '../text/segment'
+import { userPronunciation } from '../text/normalize'
 import { settings } from '../settings'
 import type { WorkerIn, WorkerOut } from './vosk.worker'
 
@@ -392,7 +393,7 @@ class SystemEngine implements Engine {
     let text = ''
     const offs: [number, number][] = []
     for (const t of sent.toks) {
-      if (t.k === 'w') { offs.push([text.length, t.i]); text += cd.words[t.i].t }
+      if (t.k === 'w') { offs.push([text.length, t.i]); const w = cd.words[t.i].t; text += userPronunciation(w)?.replace(/\+/g, '') ?? w }
       else if (t.k === 't') text += t.v
     }
     const u = this.utter(text)
@@ -578,6 +579,14 @@ export class Speech {
     if (this.pos) this.ev.word(this.pos.ch, -1)
   }
 
+  /** Изменился словарь произношения: пересинтезировать, продолжив с того же места. */
+  refreshPronunciation(): void {
+    const p = this.pos
+    const wasPlaying = this.state === 'playing' || this.state === 'loading'
+    this.resetBook()
+    if (p && wasPlaying) this.play(p)
+  }
+
   /** Открыта другая книга: остановить чтение и забыть позицию и звук прошлой. */
   resetBook(): void {
     this.stop()
@@ -603,7 +612,7 @@ export class Speech {
   }
 
   async previewVoice(text: string): Promise<void> {
-    if (settings.s.engine === 'system') { this.sys.previewVoice(text); return }
+    if (settings.s.engine === 'system') { this.sys.previewVoice(text.replace(/\+/g, '')); return }
     if (!this.vosk.loaded) {
       const ok = localStorage.getItem('cr:modelConsent') === '1' || (await this.ev.askModel())
       if (!ok) return

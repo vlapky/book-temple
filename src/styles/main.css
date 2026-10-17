@@ -558,6 +558,22 @@ kbd {
 }
 .lib-drop { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 
+/* ---------- Словарь произношения ---------- */
+.dict-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: end; }
+.dict-field { display: grid; gap: 4px; font-size: 14px; }
+.dict-scope { grid-column: 1 / -1; border: 0; margin: 0; padding: 0; }
+.dict-form .btn-row { grid-column: 1 / -1; margin-top: 0; justify-content: flex-end; }
+.dict-error { grid-column: 1 / -1; margin: 0; min-height: 0; color: #b42318; font-size: 13.5px; }
+.dict-error:empty { display: none; }
+:root[data-dark='true'] .dict-error { color: #ff9b8f; }
+.dict-list { margin-top: 14px; }
+.dict-list .group-title { display: flex; gap: 8px; align-items: baseline; }
+.dict-item { display: grid; grid-template-columns: 1fr 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; }
+.dict-from { font-weight: 600; overflow-wrap: anywhere; }
+.dict-to { font-family: var(--r-font); overflow-wrap: anywhere; }
+.dict-list .empty { padding: 4px 0 0; }
+@media (max-width: 520px) { .dict-form { grid-template-columns: 1fr; } }
+
 /* ---------- RSVP ---------- */
 .rsvp {
   position: fixed; inset: 0; z-index: 40;

@@ -17,6 +17,8 @@ import { Ruler } from './ui/ruler'
 import { SelectionBar } from './ui/selection'
 import { askModelDialog, helpDialog } from './ui/dialog'
 import { setupMenu } from './ui/menu'
+import { dictionary } from './dictionary'
+import { dictionaryDialog } from './ui/dictionary-dialog'
 
 // ---------- Состояние ----------
 
@@ -93,6 +95,7 @@ async function openBook(b: Book, save = false): Promise<void> {
   else touchBook(b.id).catch(() => {})
   book = b
   annotations.load(b.id)
+  dictionary.load(b.id)
   local.set('lastBook', b.id)
   const pos = local.get<Position>(`pos:${b.id}`, { ch: 0, s: 0 })
   $('bookTitle').textContent = b.title
@@ -337,6 +340,12 @@ function toggleBookmark(): void {
 }
 document.addEventListener('cr:bookmark', toggleBookmark)
 
+// Новое произношение должно сразу попасть и в разбор текста, и в синтез.
+dictionary.on(() => {
+  reader.clearCache()
+  speech.refreshPronunciation()
+})
+
 function highlightCurrent(withNote: boolean): void {
   const p = position()
   if (p.ch !== reader.ch) return
@@ -364,6 +373,7 @@ function runAction(a: string, opener?: HTMLElement): void {
     case 'focus': setFocusMode(!inFocus()); break
     case 'rsvp': startRsvp(); break
     case 'help': helpDialog(); break
+    case 'dict': dictionaryDialog(book.title, (t) => speech.previewVoice(t)); break
     case 'audio': settings.set({ showPlayer: !settings.s.showPlayer }); break
   }
 }
@@ -446,6 +456,7 @@ document.addEventListener('keydown', (e) => {
       case 'KeyM': panels.toggle('marks'); return true
       case 'KeyL': panels.toggle('library'); return true
       case 'KeyA': runAction('audio'); return true
+      case 'KeyD': runAction('dict'); return true
       case 'KeyB': toggleBookmark(); return true
       case 'KeyH': highlightCurrent(false); return true
       case 'KeyN': highlightCurrent(true); return true

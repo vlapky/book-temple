@@ -85,8 +85,30 @@ function translit(w: string): string {
   return s.replace(/[a-z]/g, (c) => LAT[c] ?? '')
 }
 
+// Частые латинские названия: побуквенная транслитерация читает их неузнаваемо.
+const LATIN_WORDS: Record<string, string> = {
+  chrome: 'хр+ом', edge: '+эдж', safari: 'саф+ари', firefox: 'файрф+окс', android: 'андр+оид',
+  iphone: '+айфон', ipad: '+айпад', mac: 'мак', macos: 'макос', windows: 'в+индоус', google: 'г+угл',
+  fb2: 'эф бэ два', epub: '+и паб', txt: 'тэ икс тэ', html: 'эйч ти эм эль', markdown: 'маркд+аун',
+  pdf: 'пэ дэ эф', wcag: 'вэ ка гэ', pwa: 'пэ вэ а', offline: '+офлайн', online: '+онлайн', escape: 'эск+ейп',
+}
+
+// Словарь пользователя (Словарь произношения): ключ — слово без регистра, ё = е, без ударений.
+let userWords = new Map<string, string>()
+export function setUserPronunciations(map: Map<string, string>): void { userWords = map }
+
+/** Произношение из словаря пользователя, если для слова оно задано. */
+export function userPronunciation(w: string): string | undefined {
+  if (!userWords.size) return undefined
+  return userWords.get(w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC').toLowerCase().replace(/ё/g, 'е'))
+}
+
 /** Как произнести слово. Результат — только кириллица, «+» (ударение) и дефис. */
 export function spokenWord(w: string): string {
+  const user = userPronunciation(w)
+  if (user) return user.toLowerCase()
+  const known = LATIN_WORDS[w.toLowerCase()]
+  if (known) return known
   let s = w.normalize('NFD')
     // Знак ударения после гласной → «+» перед ней (формат Vosk).
     .replace(/([аеёиоуыэюяАЕЁИОУЫЭЮЯ])́/g, '+$1')
