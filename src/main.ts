@@ -19,6 +19,7 @@ import { askModelDialog, helpDialog } from './ui/dialog'
 import { setupMenu } from './ui/menu'
 import { dictionary } from './dictionary'
 import { dictionaryDialog } from './ui/dictionary-dialog'
+import { ChapterAudio } from './tts/chapter-audio'
 
 // ---------- Состояние ----------
 
@@ -55,6 +56,11 @@ const speech = new Speech(
     askModel: () => askModelDialog(Speech.systemAvailable()),
   },
 )
+
+// Озвучка целых глав заранее: воспроизведение берёт звук из готовой главы.
+const chapterAudio = new ChapterAudio({ chapterCount: () => reader.chapterCount(), data: (ch) => reader.data(ch) }, speech.vosk)
+speech.vosk.chapterClip = (ch, s) => chapterAudio.clip(ch, s)
+chapterAudio.onChange = () => renderChapterAudio()
 
 const app: AppApi = {
   reader,
@@ -98,6 +104,7 @@ async function openBook(b: Book, save = false): Promise<void> {
   dictionary.load(b.id)
   local.set('lastBook', b.id)
   const pos = local.get<Position>(`pos:${b.id}`, { ch: 0, s: 0 })
+  chapterAudio.setBook(b.id, Math.min(pos.ch, b.chapters.length - 1)).catch(() => {})
   $('bookTitle').textContent = b.title
   document.title = `${b.title} — Храм Книги`
   reader.open(b, pos)
@@ -154,6 +161,7 @@ function goTo(p: Position, o: { flash?: boolean } = {}): void {
 
 reader.onChapter = (ch) => {
   $('chapterTitle').textContent = book.chapters[ch]?.title ?? ''
+  chapterAudio.setCurrent(ch)
   ruler.apply()
   if (panels.current === 'toc') panels.render()
 }
@@ -276,6 +284,14 @@ settings.on((s, ch) => {
   checkReadable(s)
   if (ch.includes('playbackRate')) $('speedValue').textContent = fmtRate(s.playbackRate)
   if (ch.includes('engine')) fillVoiceSelect(voiceSel)
+  if (ch.includes('wholeChapter')) {
+    if (s.wholeChapter) startWholeChapter()
+    else chapterAudio.clearAll()
+    // Чтение, если идёт, продолжается с того же места уже в новом режиме.
+    if (speech.active) speech.refreshPronunciation()
+  }
+  if (ch.some((k) => k === 'voskVoice' || k === 'speechRate' || k === 'expressiveness' || k === 'engine')) chapterAudio.invalidate()
+  renderChapterAudio()
   if (ch.includes('voskVoice') || ch.includes('systemVoice')) { voiceSel.value = s.engine === 'vosk' ? String(s.voskVoice) : s.systemVoice; updateStatus() }
   if (ch.some((k) => k === 'fontSize' || k === 'lineHeight' || k === 'columnWidth' || k === 'letterSpacing' || k === 'wordSpacing' || k === 'font' || k === 'paragraphSpacing')) {
     // После смены вёрстки возвращаемся к тому же предложению.
@@ -343,8 +359,63 @@ document.addEventListener('cr:bookmark', toggleBookmark)
 // Новое произношение должно сразу попасть и в разбор текста, и в синтез.
 dictionary.on(() => {
   reader.clearCache()
+  chapterAudio.invalidate()
   speech.refreshPronunciation()
 })
+
+// ---------- Озвучка целых глав: индикатор в плеере ----------
+
+function renderChapterAudio(): void {
+  const box = $('chapterAudio'), text = $('caText'), bar = $('caBar'), redo = $('caRedo')
+  const on = chapterAudio.enabled && !!book
+  box.hidden = !on
+  if (!on) return
+  const cur = chapterAudio.current
+  redo.hidden = !chapterAudio.isReady(cur)
+  const job = chapterAudio.job
+  if (!chapterAudio.loaded) {
+    bar.hidden = true
+    text.textContent = 'Озвучка глав начнётся после загрузки голоса'
+  } else if (job) {
+    const pct = job.total ? Math.floor((job.done / job.total) * 100) : 100
+    bar.hidden = false
+    ;(bar.firstElementChild as HTMLElement).style.width = `${pct}%`
+    const waiting = chapterAudio.waitingFor === job.ch
+    text.textContent = `${waiting ? 'Готовлю главу к чтению' : 'Озвучка'} ${job.index}/${job.of}: глава ${job.ch + 1}, ${pct}%`
+  } else {
+    bar.hidden = true
+    text.textContent = chapterAudio.isReady(cur) ? `Глава ${cur + 1} озвучена` : ''
+  }
+}
+
+$('caRedo').onclick = () => {
+  const cur = chapterAudio.current
+  if (speech.active && speech.pos?.ch === cur) speech.stop()
+  chapterAudio.regenerate(cur)
+  toast(`Глава ${cur + 1} озвучивается заново`)
+}
+
+/** Включить режим: подготовить модель, если согласие на загрузку уже было. */
+function startWholeChapter(): void {
+  chapterAudio.setBook(book.id, reader.ch).catch(() => {})
+  if (!speech.vosk.loaded && localStorage.getItem('cr:modelConsent') === '1') speech.vosk.load().then(() => chapterAudio.kick()).catch(() => {})
+}
+
+// Подсказка: синтез медленнее воспроизведения — предложить озвучку глав (один раз).
+speech.vosk.onSlow = () => {
+  if (settings.s.wholeChapter || local.get('wholeHint', false)) return
+  local.set('wholeHint', true)
+  $('suggest').hidden = false
+}
+$('suggest').onclick = (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-suggest]')
+  if (!b) return
+  $('suggest').hidden = true
+  if (b.dataset.suggest === 'yes') {
+    settings.set({ wholeChapter: true })
+    toast('Озвучка глав включена')
+  }
+}
 
 function highlightCurrent(withNote: boolean): void {
   const p = position()

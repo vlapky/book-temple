@@ -5,10 +5,13 @@ let dbp: Promise<IDBDatabase> | null = null
 
 function db(): Promise<IDBDatabase> {
   return (dbp ??= new Promise((res, rej) => {
-    const r = indexedDB.open(DB_NAME, 1)
+    const r = indexedDB.open(DB_NAME, 2)
     r.onupgradeneeded = () => {
-      r.result.createObjectStore('books', { keyPath: 'id' })
-      r.result.createObjectStore('library', { keyPath: 'id' })
+      const d = r.result
+      for (const name of ['books', 'library']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' })
+      // v2: озвучка целых глав — звук по предложениям и статус главы.
+      if (!d.objectStoreNames.contains('audio')) d.createObjectStore('audio')
+      if (!d.objectStoreNames.contains('audioMeta')) d.createObjectStore('audioMeta')
     }
     r.onsuccess = () => res(r.result)
     r.onerror = () => rej(r.error)
@@ -47,6 +50,9 @@ export async function deleteBook(id: string): Promise<void> {
   await tx('library', 'readwrite', (s) => { s.delete(id) })
   local.del(`pos:${id}`)
   local.del(`ann:${id}`)
+  local.del(`dict:${id}`)
+  // Озвучка глав этой книги больше не нужна.
+  for (const store of ['audio', 'audioMeta']) await tx(store, 'readwrite', (st) => { st.delete(IDBKeyRange.bound(`${id}|`, `${id}|\uffff`)) }).catch(() => {})
 }
 
 /** localStorage с префиксом и защитой от недоступности (приватный режим и т.п.). */
@@ -62,5 +68,49 @@ export const local = {
   },
   del(key: string): void {
     try { localStorage.removeItem('cr:' + key) } catch { /* ignore */ }
+  },
+}
+
+// ---------- Озвучка целых глав ----------
+
+/** Готовый звук одного предложения. */
+export interface SentenceAudio { wav: Blob; w0: number; starts: number[]; dur: number }
+/** Статус главы: для каких настроек голоса озвучена, с какого предложения продолжать. */
+export interface ChapterAudioMeta { gen: string; next: number; done: boolean }
+
+const pad = (n: number, w: number) => String(n).padStart(w, '0')
+const chapterPrefix = (book: string, ch: number) => `${book}|${pad(ch, 5)}|`
+const range = (prefix: string) => IDBKeyRange.bound(prefix, prefix + '\uffff')
+
+export const audioDb = {
+  put: (book: string, ch: number, s: number, a: SentenceAudio) =>
+    tx('audio', 'readwrite', (st) => { st.put(a, chapterPrefix(book, ch) + pad(s, 6)) }),
+  get: (book: string, ch: number, s: number) =>
+    tx<SentenceAudio | undefined>('audio', 'readonly', (st) => st.get(chapterPrefix(book, ch) + pad(s, 6))),
+  getMeta: (book: string, ch: number) =>
+    tx<ChapterAudioMeta | undefined>('audioMeta', 'readonly', (st) => st.get(chapterPrefix(book, ch))),
+  putMeta: (book: string, ch: number, m: ChapterAudioMeta) =>
+    tx('audioMeta', 'readwrite', (st) => { st.put(m, chapterPrefix(book, ch)) }),
+  /** Номера глав книги, для которых что-то сохранено. */
+  async chapters(book: string): Promise<number[]> {
+    const keys = await tx<IDBValidKey[]>('audioMeta', 'readonly', (st) => st.getAllKeys(range(`${book}|`)))
+    return keys.map((k) => +String(k).split('|')[1])
+  },
+  async deleteChapter(book: string, ch: number): Promise<void> {
+    await tx('audio', 'readwrite', (st) => { st.delete(range(chapterPrefix(book, ch))) })
+    await tx('audioMeta', 'readwrite', (st) => { st.delete(chapterPrefix(book, ch)) })
+  },
+  /** Удалить озвучку всех книг, кроме указанной. */
+  async deleteOtherBooks(book: string): Promise<void> {
+    for (const store of ['audio', 'audioMeta']) {
+      await tx(store, 'readwrite', (st) => {
+        st.delete(IDBKeyRange.upperBound(`${book}|`, true))
+        st.delete(IDBKeyRange.lowerBound(`${book}|\uffff`, true))
+      })
+    }
+  },
+  async clear(): Promise<void> {
+    await tx('audio', 'readwrite', (st) => { st.clear() })
+    await tx('audioMeta', 'readwrite', (st) => { st.clear() })
   },
 }

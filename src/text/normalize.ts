@@ -95,7 +95,13 @@ const LATIN_WORDS: Record<string, string> = {
 
 // Словарь пользователя (Словарь произношения): ключ — слово без регистра, ё = е, без ударений.
 let userWords = new Map<string, string>()
-export function setUserPronunciations(map: Map<string, string>): void { userWords = map }
+let userSig = ''
+export function setUserPronunciations(map: Map<string, string>): void {
+  userWords = map
+  userSig = [...map].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join(';')
+}
+/** Отпечаток словаря: меняется при любой правке (для актуальности сохранённой озвучки). */
+export const userPronunciationsSignature = () => userSig
 
 /** Произношение из словаря пользователя, если для слова оно задано. */
 export function userPronunciation(w: string): string | undefined {

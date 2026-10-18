@@ -42,7 +42,7 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 
 // ---------- WAV ----------
 
-function wavUrl(pcm: Int16Array, rate: number): string {
+export function wavBlob(pcm: Int16Array, rate: number): Blob {
   const buf = new ArrayBuffer(44 + pcm.length * 2)
   const v = new DataView(buf)
   const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)) }
@@ -51,8 +51,10 @@ function wavUrl(pcm: Int16Array, rate: number): string {
   v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true)
   w(36, 'data'); v.setUint32(40, pcm.length * 2, true)
   new Int16Array(buf, 44).set(pcm)
-  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+  return new Blob([buf], { type: 'audio/wav' })
 }
+
+const wavUrl = (pcm: Int16Array, rate: number) => URL.createObjectURL(wavBlob(pcm, rate))
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='
 
@@ -71,7 +73,9 @@ function speechSpan(a: Int16Array, rate: number): [number, number] {
 
 // ---------- Vosk ----------
 
-interface Clip { url: string; w0: number; starts: Float32Array; dur: number }
+export interface Clip { url: string; w0: number; starts: Float32Array; dur: number }
+/** Звук предложения до упаковки в WAV: для хранения целых глав. */
+export interface SentencePcm { pcm: Int16Array; rate: number; w0: number; starts: Float32Array }
 interface Job { key: string; ch: number; s: number }
 
 class VoskEngine implements Engine {
@@ -134,13 +138,25 @@ class VoskEngine implements Engine {
     return this.ready
   }
 
+  private chain: Promise<unknown> = Promise.resolve()
+  private synthCount = 0
+  /** Синтез медленнее воспроизведения: будут паузы между фразами. */
+  onSlow: (() => void) | null = null
+  /** Режим «озвучивать главу целиком»: звук предложения из готовой главы. */
+  chapterClip: ((ch: number, s: number) => Promise<Clip>) | null = null
+  private wholeUrl = ''
+
+  /** Один запрос к модели; запросы выполняются строго по очереди. */
   private synthRaw(text: string): Promise<{ audio: Int16Array; sampleRate: number }> {
-    const id = ++this.reqId
-    const s = settings.s
-    return new Promise((res, rej) => {
+    const run = () => new Promise<{ audio: Int16Array; sampleRate: number }>((res, rej) => {
+      const id = ++this.reqId
+      const s = settings.s
       this.reqs.set(id, { res, rej })
       this.worker!.postMessage({ type: 'synth', id, text, speaker: s.voskVoice, speechRate: s.speechRate, noise: s.expressiveness } satisfies WorkerIn)
     })
+    const p = this.chain.then(run, run)
+    this.chain = p.catch(() => {})
+    return p
   }
 
   /** Растёт при смене книги: глава 0, предложение 0 у разных книг — разные фразы. */
@@ -164,6 +180,12 @@ class VoskEngine implements Engine {
   }
 
   private async synthClip(ch: number, s: number): Promise<Clip> {
+    const r = await this.synthPcm(ch, s)
+    return { url: wavUrl(r.pcm, r.rate), w0: r.w0, starts: r.starts, dur: r.pcm.length / r.rate }
+  }
+
+  /** Синтез одного предложения: звук и оценка начала каждого слова. */
+  async synthPcm(ch: number, s: number): Promise<SentencePcm> {
     const cd = this.src.data(ch)
     const sent = cd.sents[s]
     // Длинные предложения синтезируем частями по знакам препинания.
@@ -213,7 +235,7 @@ class VoskEngine implements Engine {
     const pcm = new Int16Array(offset)
     let o = 0
     for (const c of chunks) { pcm.set(c, o); o += c.length }
-    return { url: wavUrl(pcm, rate), w0: sent.w0, starts, dur: pcm.length / rate }
+    return { pcm, rate, w0: sent.w0, starts }
   }
 
   private async pump(): Promise<void> {
@@ -224,8 +246,11 @@ class VoskEngine implements Engine {
     this.busy = job.key
     const gen = this.genOf()
     const book = this.bookGen
+    const t0 = performance.now()
     try {
       const clip = await this.synthClip(job.ch, job.s)
+      // Первая фраза греет модель, поэтому скорость оцениваем по второй.
+      if (++this.synthCount === 2 && (performance.now() - t0) / 1000 > clip.dur / settings.s.playbackRate) this.onSlow?.()
       if (book !== this.bookGen) URL.revokeObjectURL(clip.url) // книгу сменили — фраза больше не нужна
       else if (gen !== this.genOf()) { URL.revokeObjectURL(clip.url); this.queue.unshift(job) } // настройки сменились — пересинтезировать
       else {
@@ -302,13 +327,17 @@ class VoskEngine implements Engine {
     this.stopAudio()
     this.load()
       .then(() => {
+        if (settings.s.wholeChapter && this.chapterClip) return this.chapterClip(ch, s)
         const p = this.request(ch, s)
         this.prefetch(ch, s)
         return p
       })
       .then((clip) => {
-        if (my !== this.playSeq) return
+        if (my !== this.playSeq) { if (settings.s.wholeChapter) URL.revokeObjectURL(clip.url); return }
         const a = this.audio
+        // Звук целой главы лежит на диске; URL предыдущей фразы больше не нужен.
+        if (this.wholeUrl && this.wholeUrl !== clip.url) URL.revokeObjectURL(this.wholeUrl)
+        this.wholeUrl = settings.s.wholeChapter ? clip.url : ''
         a.src = clip.url
         a.playbackRate = settings.s.playbackRate
         a.onended = () => { if (my === this.playSeq) { cancelAnimationFrame(this.raf); cb.end() } }

@@ -60,6 +60,13 @@
           <div id="ttsStatus" class="tts-status" role="status" aria-live="polite"></div>
           <div class="load-bar" id="loadBar" hidden><span></span></div>
           <div id="posLabel" class="pos-label"></div>
+          <div id="chapterAudio" class="chapter-audio" hidden>
+            <div class="ca-row">
+              <span id="caText" class="ca-text" role="status" aria-live="polite"></span>
+              <button type="button" class="btn ghost ca-redo" id="caRedo" hidden>Озвучить заново</button>
+            </div>
+            <div class="load-bar" id="caBar" hidden><span></span></div>
+          </div>
         </div>
         <div class="player-opts">
           <label class="voice-pick">
@@ -111,6 +118,15 @@
           <input type="range" id="rsvpWpm" min="100" max="1000" step="25" />
           <output id="rsvpWpmOut"></output>
         </label>
+      </div>
+    </section>
+
+    <section id="suggest" class="suggest" aria-labelledby="suggestTitle" hidden>
+      <h2 id="suggestTitle" class="suggest-title">Между фразами будут паузы</h2>
+      <p>Голос готовится медленнее, чем звучит. Включите «Озвучивать главу целиком»: главы будут озвучиваться заранее и читаться без пауз.</p>
+      <div class="btn-row">
+        <button type="button" class="btn" data-suggest="no">Не сейчас</button>
+        <button type="button" class="btn primary" data-suggest="yes">Включить</button>
       </div>
     </section>
 

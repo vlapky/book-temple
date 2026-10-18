@@ -39,6 +39,8 @@ export interface Settings {
   rsvpContext: boolean
 
   showPlayer: boolean
+  /** Озвучивать главу целиком заранее (для устройств, где синтез медленнее чтения). */
+  wholeChapter: boolean
 }
 
 /** Тема по системной настройке устройства: тёмная → ночная, иначе дневная. */
@@ -83,6 +85,7 @@ export const DEFAULTS: Settings = {
   rsvpContext: true,
 
   showPlayer: true,
+  wholeChapter: false,
 }
 
 export interface Theme { name: string; bg: string; fg: string; accent: string; rule: string }
