@@ -56,6 +56,9 @@ export function wavBlob(pcm: Int16Array, rate: number): Blob {
 
 const wavUrl = (pcm: Int16Array, rate: number) => URL.createObjectURL(wavBlob(pcm, rate))
 
+/** iPhone, iPad (в том числе iPadOS, который притворяется Mac). */
+export const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='
 
 /** Границы речи в отсчётах (без тишины в начале и конце). */
@@ -115,27 +118,66 @@ class VoskEngine implements Engine {
     this.audio.play().catch(() => {})
   }
 
+  /** Как запущена модель: для диагностики («WebGPU, 3 потока»). */
+  mode = ''
+
   load(): Promise<string> {
     if (this.ready) return this.ready
-    this.ready = new Promise<string>((res, rej) => {
+    // Просим не вытеснять кэш модели (persist доступен только в окне, не в воркере).
+    navigator.storage?.persist?.().catch(() => {})
+    const p = (async () => {
+      const first = { backend: settings.s.backend, threads: isIOS() ? 1 : Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) }
+      try {
+        return await this.initWorker(first.backend, first.threads)
+      } catch (e) {
+        // На iOS модель часто не стартует из-за памяти (многопоточный WASM) или WebGPU.
+        // Пробуем ещё раз в самом простом режиме: процессор, один поток, чистый воркер.
+        if (first.backend === 'wasm' && first.threads === 1) throw e
+        console.warn('Голосовая модель не запустилась, пробую простой режим:', e)
+        this.onProgress(1, 'Повторный запуск голоса в простом режиме')
+        try {
+          return await this.initWorker('wasm', 1)
+        } catch (e2) {
+          throw new Error(`${(e as Error).message}; в простом режиме: ${(e2 as Error).message}`)
+        }
+      }
+    })()
+    this.ready = p
+    p.catch(() => { if (this.ready === p) this.ready = null })
+    return p
+  }
+
+  /** Один запуск модели в новом воркере. При ошибке воркер закрывается. */
+  private initWorker(backend: 'auto' | 'webgpu' | 'wasm', threads: number): Promise<string> {
+    return new Promise<string>((res, rej) => {
       const w = new Worker(new URL('./vosk.worker.ts', import.meta.url), { type: 'module' })
       this.worker = w
+      const fail = (msg: string) => {
+        w.terminate()
+        if (this.worker === w) this.worker = null
+        rej(new Error(msg))
+      }
       w.onmessage = (e: MessageEvent<WorkerOut>) => {
         const m = e.data
-        if (m.type === 'progress') this.onProgress(m.overall, m.cached ? 'Загрузка модели из кэша' : 'Скачивание модели')
-        else if (m.type === 'ready') { this.loaded = true; this.backend = m.backend; res(m.backend); this.pump() }
-        else if (m.type === 'audio') { this.reqs.get(m.id)?.res(m); this.reqs.delete(m.id) }
+        if (m.type === 'progress') {
+          // После скачивания идёт создание сессий — без прогресса, это может занять время.
+          this.onProgress(m.overall, m.overall >= 0.999 ? 'Запускаю голосовую модель' : m.cached ? 'Загрузка модели из кэша' : 'Скачивание модели')
+        } else if (m.type === 'ready') {
+          this.loaded = true
+          this.backend = m.backend
+          this.mode = `${m.backend === 'webgpu' ? 'видеокарта (WebGPU)' : 'процессор (WASM)'}, ${threads} ${threads === 1 ? 'поток' : 'потока'}`
+          res(m.backend)
+          this.pump()
+        } else if (m.type === 'audio') { this.reqs.get(m.id)?.res(m); this.reqs.delete(m.id) }
         else if (m.type === 'error') {
-          if (m.id == null) { this.ready = null; this.worker?.terminate(); this.worker = null; rej(new Error(m.message)) }
+          if (m.id == null) fail(m.message)
           else { this.reqs.get(m.id)?.rej(new Error(m.message)); this.reqs.delete(m.id) }
         }
       }
-      w.onerror = (e) => { this.ready = null; this.worker = null; rej(new Error(e.message || 'Ошибка потока синтеза')) }
+      w.onerror = (e) => { e.preventDefault?.(); fail(e.message || 'Поток синтеза аварийно завершился (возможно, не хватило памяти)') }
       const wasmPaths = new URL('ort/', document.baseURI).href
-      const threads = Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1))
-      w.postMessage({ type: 'init', backend: settings.s.backend, wasmPaths, threads } satisfies WorkerIn)
+      w.postMessage({ type: 'init', backend, wasmPaths, threads } satisfies WorkerIn)
     })
-    return this.ready
   }
 
   private chain: Promise<unknown> = Promise.resolve()

@@ -24,6 +24,8 @@ import { ChapterAudio } from './tts/chapter-audio'
 // ---------- Состояние ----------
 
 let book: Book
+/** Последняя ошибка озвучки: видна в строке статуса, пока не начнётся новая попытка. */
+let lastError = ''
 const reader = new Reader($('content'))
 
 applySettings(settings.s)
@@ -51,7 +53,12 @@ const speech = new Speech(
       ;(bar.firstElementChild as HTMLElement).style.width = `${Math.round(p * 100)}%`
       $('ttsStatus').textContent = p > 0 ? `${label}… ${Math.round(p * 100)}%` : `${label}…`
     },
-    error: (msg) => toast(msg, 'error'),
+    error: (msg) => {
+      // Текст ошибки остаётся в строке статуса, пока не начнётся новая попытка.
+      lastError = msg
+      toast(msg, 'error')
+      updateStatus()
+    },
     finished: () => toast('Книга дочитана до конца'),
     askModel: () => askModelDialog(Speech.systemAvailable()),
   },
@@ -232,10 +239,14 @@ function updateStatus(): void {
   const st = speech.state
   const s = settings.s
   const voice = s.engine === 'vosk' ? VOSK_VOICES[s.voskVoice]?.name : (Speech.systemVoices().find((v) => v.voiceURI === s.systemVoice) ?? Speech.systemVoices()[0])?.name ?? 'Системный голос'
-  $('ttsStatus').textContent = st === 'playing' ? `Читает ${voice}` : st === 'paused' ? 'На паузе. Пробел продолжит чтение' : st === 'loading' ? 'Готовлю озвучку…' : 'Нажмите пробел, чтобы слушать'
+  const el = $('ttsStatus')
+  el.classList.toggle('is-error', st === 'idle' && !!lastError)
+  el.title = st === 'idle' && lastError ? lastError : ''
+  el.textContent = st === 'playing' ? `Читает ${voice}` : st === 'paused' ? 'На паузе. Пробел продолжит чтение' : st === 'loading' ? 'Готовлю озвучку…' : lastError ? lastError : 'Нажмите пробел, чтобы слушать'
 }
 
 function onTtsState(st: TtsState): void {
+  if (st !== 'idle') lastError = ''
   const b = $('ttsPlay')
   const busy = st === 'playing' || st === 'loading'
   b.innerHTML = icon(busy ? 'pause' : 'play')

@@ -363,6 +363,8 @@ body.player-hidden .toasts { bottom: 24px; }
 .pbtn.play:hover { background: color-mix(in srgb, var(--control) 82%, var(--bg)); }
 .pbtn.play .ico { width: 22px; height: 22px; }
 .player-status { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.tts-status.is-error { color: #b42318; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow-wrap: anywhere; }
+:root[data-dark='true'] .tts-status.is-error { color: #ff9b8f; }
 .tts-status { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
 .pos-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 .pos-label span { overflow: hidden; text-overflow: ellipsis; }

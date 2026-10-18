@@ -9,6 +9,7 @@ import { $, esc, toast, plural } from './dom'
 import { hydrateIcons } from './icons'
 import { confirmDialog, noteDialog, pasteDialog } from './dialog'
 import { FN_RE } from '../text/segment'
+import { modelCacheInfo, formatMB } from '../tts/model-cache'
 
 export interface AppApi {
   reader: Reader
@@ -190,7 +191,8 @@ export class Panels {
               <option value="webgpu" ${s.backend === 'webgpu' ? 'selected' : ''}>Видеокарта (WebGPU)</option>
               <option value="wasm" ${s.backend === 'wasm' ? 'selected' : ''}>Процессор (WASM)</option>
             </select>
-            <p class="hint" id="modelStatus">${this.app.speech.vosk.loaded ? `Модель загружена и считается ${this.app.speech.vosk.backend === 'webgpu' ? 'на видеокарте' : 'на процессоре'}${crossOriginIsolated ? ' в несколько потоков' : ''}.` : 'Модель ещё не загружена.'} Новый режим вычислений включится после перезагрузки страницы.</p>
+            <p class="hint" id="modelStatus">${this.app.speech.vosk.loaded ? `Модель запущена: ${esc(this.app.speech.vosk.mode)}${crossOriginIsolated ? '' : ', без изоляции страницы'}.` : 'Модель ещё не запущена.'} Новый режим вычислений включится после перезагрузки страницы.</p>
+            <p class="hint" id="modelCache">Проверяю кэш модели…</p>
           </div>
           <div class="btn-row"><button type="button" class="btn danger" id="clearModel" data-icon="trash">Удалить модель из памяти</button></div>` : ''}
       </section>
@@ -234,6 +236,13 @@ export class Panels {
     }
     b.querySelector('#set-contrast')?.closest('.field')?.classList.add('keep-contrast')
     fillVoiceSelect(b.querySelector('[data-voice-select]')!)
+    const cacheEl = b.querySelector<HTMLElement>('#modelCache')
+    if (cacheEl) modelCacheInfo().then((c) => {
+      const parts = [`В кэше браузера ${c.files} из ${c.expected} файлов модели (${formatMB(c.bytes)}).`]
+      if (c.free != null) parts.push(`Свободно для сайта: ${formatMB(c.free)}.`)
+      if (c.persisted === false && c.files) parts.push('Браузер может удалить кэш при нехватке места.')
+      cacheEl.textContent = parts.join(' ')
+    })
     b.querySelector<HTMLButtonElement>('#previewBtn')!.onclick = () => this.app.speech.previewVoice(SAMPLE_PHRASE)
     const clear = b.querySelector<HTMLButtonElement>('#clearModel')
     if (clear) clear.onclick = async () => {
