@@ -1,7 +1,7 @@
 import { local } from './storage'
 
 export type ThemeId = 'day' | 'night' | 'sepia' | 'cream' | 'digital'
-export type FontId = 'literata' | 'pt-serif' | 'fira-sans' | 'andika' | 'system'
+export type FontId = 'literata' | 'pt-serif' | 'fira-sans' | 'andika' | 'fast-serif' | 'fast-sans' | 'system'
 
 export interface Settings {
   font: FontId
@@ -104,6 +104,8 @@ export const FONTS: Record<FontId, { name: string; stack: string; note?: string 
   'pt-serif': { name: 'PT Serif', stack: "'PT Serif', Georgia, serif", note: 'классическая антиква' },
   'fira-sans': { name: 'Fira Sans', stack: "'Fira Sans', system-ui, sans-serif", note: 'чёткий гротеск' },
   andika: { name: 'Andika', stack: "'Andika', 'Fira Sans', sans-serif", note: 'для дислексии' },
+  'fast-serif': { name: 'Fast Serif', stack: "'Fast Serif', Georgia, serif", note: 'быстрое чтение' },
+  'fast-sans': { name: 'Fast Sans', stack: "'Fast Sans', system-ui, sans-serif", note: 'быстрое чтение' },
   system: { name: 'Системный', stack: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
 }
 

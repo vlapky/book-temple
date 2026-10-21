@@ -9,3 +9,5 @@ import '@fontsource/fira-sans/500.css'
 import '@fontsource/fira-sans/700.css'
 import '@fontsource/andika/400.css'
 import '@fontsource/andika/700.css'
+// Fast Font (MIT): жирное начало слов задаёт точки фиксации взгляда.
+import './fonts/fast/fast.css'

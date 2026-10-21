@@ -1,0 +1,58 @@
+/* Fast Font (https://github.com/Born2Root/Fast-Font), лицензия MIT — см. LICENSE.
+   Подмножество латиница + кириллица; выделение начала слов через OpenType calt. */
+@font-face {
+  font-family: 'Fast Serif';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./fast-serif-cyrillic-latin-400-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Serif';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./fast-serif-cyrillic-latin-400-italic.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Serif';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./fast-serif-cyrillic-latin-700-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Serif';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./fast-serif-cyrillic-latin-700-italic.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./fast-sans-cyrillic-latin-400-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Sans';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./fast-sans-cyrillic-latin-400-italic.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./fast-sans-cyrillic-latin-700-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Fast Sans';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./fast-sans-cyrillic-latin-700-italic.woff2) format('woff2');
+}

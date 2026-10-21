@@ -217,6 +217,8 @@ main { padding: 40px 20px 170px; }
   font-size: var(--r-size);
   line-height: var(--r-lh);
   letter-spacing: var(--r-ls);
+  /* Браузеры отключают calt при letter-spacing ≠ 0, а на нём держится Fast Font. */
+  font-feature-settings: 'calt' 1;
   word-spacing: var(--r-ws);
   text-align: var(--r-align);
   hyphens: auto;
